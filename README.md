@@ -9,8 +9,8 @@ Your overlay software watches those files.
 Text and image navigation is **independent** (Next Text, Next Image, …).
 Each can be **hidden** (empty text file / transparent placeholder PNG).
 
-AI was used a lot, human code checking and testing was performed.
-This is mosly a tool I wanted to have, but I'm sharing it becalse why not.
+AI was used heavily during development, with human review and testing of all code.
+This is a personal tool I wanted and I'm sharing it in case it's useful to others.
 
 ## Install
 
@@ -22,7 +22,7 @@ cd media-overlay-switchboard
 # with uv (recommended)
 uv tool install --with 'media-overlay-switchboard[gui]' .
 # or without gui
-uv tool install media-overlay-switchboard
+uv tool install .
 
 # with pipx
 pipx install media-overlay-switchboard[gui]
@@ -69,8 +69,8 @@ Python venv.
 - No arguments → starts the GUI server (`mo-switchboard-gui`)
 - Arguments given → passed through to the bundled CLI binary (`mo-switchboard-cli`), e.g.
   ```bash
-  ./Media-Overlay-Switchboard-*.AppImage server --no-gui --suffix myshow
-  ./Media-Overlay-Switchboard-*.AppImage text-next --suffix default
+  ./media-overlay-switchboard-*-x86_64.AppImage server --no-gui --suffix myshow
+  ./media-overlay-switchboard-*-x86_64.AppImage text-next --suffix default
   ```
 
 ## Quick start
@@ -90,7 +90,7 @@ Now playing: Game Title
 Thanks for watching!
 ```
 
-Place images in a folder, they will displayed like when sorted by name:
+Place images in a folder, they will be displayed alphabetically by name:
 
 ```
 ~/stream/images/
@@ -115,7 +115,7 @@ mo-switchboard-cli server \
 ```
 
 The server listens on a Unix socket at
-`$XDG_RUNTIME_DIR/media-overlay-switchboard-default.sock`
+`$XDG_RUNTIME_DIR/media-overlay-switchboard/media-overlay-switchboard-default.sock`
 and writes `overlay_text.txt` + `overlay_image.png` into the target folder.
 
 Use `--no-gui` for console-only mode (no Qt window):
@@ -152,6 +152,11 @@ mo-switchboard-cli image-set 2 --suffix default   # jump to image by index
 
 mo-switchboard-cli status --suffix default        # show current state
 mo-switchboard-cli reload --suffix default         # re-read sources
+
+mo-switchboard-cli window-show --suffix default   # show / restore the GUI window
+mo-switchboard-cli window-hide --suffix default   # hide the GUI window
+mo-switchboard-cli window-toggle --suffix default # toggle GUI window visibility
+mo-switchboard-cli window-quit --suffix default   # quit the application
 ```
 
 Successful commands produce no output (exit code 0). Errors go to stderr
@@ -159,8 +164,8 @@ and exit with code 1.
 
 ### 4. Point OBS at the output files
 
-Add a **Text (GDI+)** / **Text** source pointing to the `overlay_text.txt`
-file, and an **Image** source pointing to `overlay_image.png`.
+Add a **Text (GDI+)** / **Text (FreeType 2)** source pointing to
+`overlay_text.txt`, and an **Image** source pointing to `overlay_image.png`.
 
 Because the files are overwritten in place, your overlay software picks up
 every change automatically.
@@ -203,6 +208,17 @@ will have `Terminal=true` so the interactive menu opens in a terminal
 when launched from the application menu. Otherwise `Terminal=false` (GUI
 window).
 
+Use `--no-tray true` to start without a system tray icon:
+
+```bash
+mo-switchboard-cli server --no-tray true       # disable tray icon
+mo-switchboard-cli server --no-tray false      # re-enable tray icon if set in config
+```
+
+When no tray icon is present and the window is closed (or hidden via
+`window-hide`), it can only be restored via `window-show` from the CLI.
+The close dialog is also skipped — the window hides immediately.
+
 > **Note:** Some desktop environments (GNOME) don't show tray icons at all
 > without an extension like [AppIndicator](https://extensions.gnome.org/extension/615/appindicator-support/).
 > KDE Plasma works out of the box.
@@ -229,7 +245,7 @@ line.  Ctrl+C exits cleanly.
 ## Multi-instance
 
 Each server instance gets its own socket suffix. If a suffix is already
-taken the server auto-increments (e.g. `default` → `default1` → `default2`).
+taken, the server auto-increments (e.g. `default` → `default1` → `default2`).
 
 ```bash
 mo-switchboard-cli server --suffix stream-a ...
@@ -245,20 +261,14 @@ behaviour depends on the `ask_socket` config setting:
 |---|---|
 | `true` | Prompt to pick a socket interactively |
 | `false` | Auto-picks a socket (usually `default` or first found) |
-| `null` (not set) | Print a warning to stderr with a hint to set `ask_socket` |
+| `null` (not set) | Prints a warning to stderr with a hint to set `ask_socket` |
 
-The setting is per socket suffix. Set it for a specific suffix:
-
-```bash
-mo-switchboard-cli config-set ask_socket.default true
-mo-switchboard-cli config-set ask_socket.stream1 false
-```
-
-If no entry exists for the current suffix, the `default` entry is used as
-fallback (if set). Otherwise the global default (`null`) applies.
+The setting lives in each suffix's config section. Set it for a specific
+suffix with ``--suffix``:
 
 ```bash
-mo-switchboard-cli config-set ask_socket true
+mo-switchboard-cli config-set ask_socket true --suffix stream1
+mo-switchboard-cli config-set ask_socket false --suffix default
 ```
 
 ## Placeholder size
@@ -300,13 +310,14 @@ All config keys:
 | `images_folder` | string | `""` | Path to images folder |
 | `target_folder` | string | `""` | Path for output files |
 | `text_separator` | string | `-- TEXTSPLIT --` | Separator between entries |
-| `ask_socket` | dict | `{}` | Per-suffix socket prompt (e.g. `{"default": true}`) |
+| `ask_socket` | bool / null | `null` | Multi-instance socket prompt (`true`=prompt, `false`=auto-pick, `null`=warn) |
 | `transparent_width` | int | `1920` | Placeholder image width |
 | `transparent_height` | int | `1080` | Placeholder image height |
 | `text_index` | int | `0` | Current text entry (persisted) |
 | `image_index` | int | `0` | Current image index (persisted) |
 | `hide_to_tray_no_warn` | bool | `false` | Skip close-to-tray warning |
+| `no_tray` | bool | `false` | Disable system tray icon (restore via `window-show`) |
 
 The server also accepts `--text-file`, `--images-folder`, `--target-folder`,
-`--separator`, `--transparent-width`, `--transparent-height` on the command
-line — these override the config for that session.
+`--separator`, `--transparent-width`, `--transparent-height`, `--no-tray`,
+`--no-gui` on the command line — these override the config for that session.

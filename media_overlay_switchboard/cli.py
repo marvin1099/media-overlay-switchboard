@@ -22,7 +22,7 @@ _CLIENT_OPTS = argparse.ArgumentParser(add_help=False)
 _CLIENT_OPTS.add_argument(
     "--suffix",
     default=None,
-    help="Socket suffix of the target server instance (default: %(default)s)",
+    help='Socket suffix of the target server instance (default: "default")',
 )
 _CLIENT_OPTS.add_argument(
     "--no-ask",
@@ -43,7 +43,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
-
+    parser.add_argument(
+        "--suffix",
+        default=None,
+        dest="global_suffix",
+        help="Socket suffix (can also be placed after the subcommand)",
+    )
+    parser.add_argument(
+        "--no-ask",
+        action="store_true",
+        default=None,
+        dest="global_no_ask",
+        help="Disable interactive socket selection prompt",
+    )
 
     sub = parser.add_subparsers(dest="command", help="Sub-command")
     sub.required = True
@@ -52,8 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("server", help="Start the overlay server")
     sp.add_argument(
         "--suffix",
-        default="default",
-        help="Socket suffix (default: %(default)s). Auto-increments if taken.",
+        default=None,
+        help="Socket suffix (default: \"default\"). Auto-increments if taken.",
     )
     sp.add_argument(
         "--no-gui",
@@ -82,6 +94,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Height of transparent placeholder image",
     )
+    sp.add_argument(
+        "--no-tray",
+        nargs="?",
+        const="true",
+        type=parse_config_value,
+        default=None,
+        help="Disable system tray icon (window can only be restored via CLI). "
+        'Use "--no-tray false" to re-enable if enabled in config.',
+    )
 
     # ---- list -----------------------------------------------------------
     sub.add_parser("list", help="List active server instances")
@@ -100,6 +121,10 @@ def build_parser() -> argparse.ArgumentParser:
         ("image-toggle", "Toggle image overlay visibility"),
         ("status", "Show current overlay status"),
         ("reload", "Reload text file and images folder"),
+        ("window-show", "Show the GUI window (if hidden/minimised)"),
+        ("window-hide", "Hide the GUI window"),
+        ("window-toggle", "Toggle GUI window visibility"),
+        ("window-quit", "Quit the application"),
     ]
     for cmd, help_txt in _simple_cmds:
         p = sub.add_parser(cmd, help=help_txt, parents=[_CLIENT_OPTS])
@@ -127,12 +152,23 @@ def build_parser() -> argparse.ArgumentParser:
 # Command runners
 # ---------------------------------------------------------------------------
 
+def _resolve_suffix(args: argparse.Namespace) -> str:
+    """Resolve ``--suffix`` whether given before or after the subcommand."""
+    return getattr(args, "suffix", None) or args.global_suffix or "default"
+
+
+def _resolve_no_ask(args: argparse.Namespace) -> bool:
+    """Resolve ``--no-ask`` whether given before or after the subcommand."""
+    return getattr(args, "no_ask", False) or args.global_no_ask or False
+
+
 def _run_server(args: argparse.Namespace) -> None:
-    config = Config.load(args.suffix)
+    suffix = _resolve_suffix(args)
+    config = Config.load(suffix)
     config.update_from_cli(args)
 
     # resolve suffix (auto-increment when already in use)
-    suffix = find_available_suffix(args.suffix)
+    suffix = find_available_suffix(suffix)
 
     # import server
     from .server import Server
@@ -378,8 +414,9 @@ def _run_list(_args: object = None) -> None:
 
 
 def _run_client_command(args: argparse.Namespace) -> None:
-    config = Config.load()
-    suffix = resolve_target_suffix(config, args.suffix, no_ask=args.no_ask)
+    suffix = resolve_target_suffix(
+        _resolve_suffix(args), no_ask=_resolve_no_ask(args)
+    )
     if suffix is None:
         sys.exit(1)
 
@@ -417,7 +454,7 @@ def _print_status(data: dict) -> None:
 
 
 def _run_config_set(args: argparse.Namespace) -> None:
-    suffix = args.suffix or "default"
+    suffix = _resolve_suffix(args)
     config = Config.load(suffix)
     parsed = parse_config_value(args.value)
     key = args.key
@@ -441,8 +478,10 @@ def _run_config_set(args: argparse.Namespace) -> None:
 
 
 def _run_config_get(args: argparse.Namespace) -> None:
-    suffix = args.suffix or "default"
+    suffix = _resolve_suffix(args)
     config = Config.load(suffix)
+    if config._used_fallback:
+        print(f"(suffix \"{suffix}\" has no config yet; showing defaults)")
     if args.key:
         if "." in args.key:
             parent, child = args.key.split(".", 1)
@@ -464,6 +503,8 @@ def _run_config_get(args: argparse.Namespace) -> None:
     else:
         print("Configuration:")
         for key, value in config.__dict__.items():
+            if key.startswith("_"):
+                continue
             print(f"  {key:25s} = {repr(value)}")
 
 

@@ -74,8 +74,8 @@ class Config:
     target_folder   – path where output files (overlay_text.txt,
                       overlay_image.png) are written
     text_separator  – string that separates entries in the text file
-    ask_socket      – per-suffix setting for multi-instance socket selection
-                      (maps suffix → bool/None, falls back to "default")
+    ask_socket      – multi-instance socket selection (true=prompt,
+                      false=auto-pick, null=warn)
     transparent_width / transparent_height – dimensions of the generated
                       transparent placeholder image
     """
@@ -85,12 +85,14 @@ class Config:
         self.images_folder: str = ""
         self.target_folder: str = ""
         self.text_separator: str = DEFAULT_TEXT_SEPARATOR
-        self.ask_socket: dict[str, bool | None] = {}
+        self.ask_socket: bool | None = None
         self.transparent_width: int = DEFAULT_TRANSPARENT_SIZE[0]
         self.transparent_height: int = DEFAULT_TRANSPARENT_SIZE[1]
         self.text_index: int = 0
         self.image_index: int = 0
         self.hide_to_tray_no_warn: bool = False
+        self.no_tray: bool = False
+        self._used_fallback: bool = False
 
     # ------------------------------------------------------------------
     # Serialisation
@@ -106,10 +108,12 @@ class Config:
         cfg = cls()
         config_path = get_config_dir() / "config.json"
         if not config_path.exists():
+            cfg._used_fallback = False
             return cfg
         try:
             data = json.loads(config_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
+            cfg._used_fallback = False
             return cfg
 
         # Detect old flat format → migrate to per-suffix
@@ -117,7 +121,13 @@ class Config:
             _migrate_to_suffixed(data, config_path)
             data = {suffix: data}
 
-        section = data.get(suffix) or data.get("default")
+        section = data.get(suffix)
+        if not section:
+            section = data.get("default")
+        cfg._used_fallback = (
+            section is not data.get(suffix)
+            and section is not None
+        )
         if section and isinstance(section, dict):
             for key, value in section.items():
                 if hasattr(cfg, key):
@@ -134,7 +144,9 @@ class Config:
         if not _is_suffixed(data):
             data = {}
 
-        data[suffix] = self.__dict__
+        data[suffix] = {
+            k: v for k, v in self.__dict__.items() if not k.startswith("_")
+        }
         config_path.write_text(
             json.dumps(data, indent=2, default=str),
             encoding="utf-8",
@@ -156,6 +168,7 @@ class Config:
             "ask_socket",
             "transparent_width",
             "transparent_height",
+            "no_tray",
         ):
             val = getattr(ns, key, None)
             if val is not None:
@@ -167,14 +180,6 @@ class Config:
     @property
     def transparent_size(self) -> tuple[int, int]:
         return (self.transparent_width, self.transparent_height)
-
-    def get_ask_socket(self, suffix: str) -> bool | None:
-        """Resolve ask_socket for a given suffix, falling back to 'default'."""
-        if suffix in self.ask_socket:
-            return self.ask_socket[suffix]
-        if "default" in self.ask_socket:
-            return self.ask_socket["default"]
-        return None
 
 
 # ---------------------------------------------------------------------------

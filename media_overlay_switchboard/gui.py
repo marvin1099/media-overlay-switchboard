@@ -11,7 +11,7 @@ import signal
 import sys
 from importlib.resources import files
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QMetaObject, Q_ARG, Slot
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -219,21 +219,38 @@ class MainWindow(QMainWindow):
         self.btn_quit.clicked.connect(self._quit_app)
 
         # ---------- tray --------------------------------------------------
-        self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(_load_icon())
-        self.tray_icon.setToolTip(f"MOS [{suffix}]")
+        if not server.config.no_tray:
+            self.tray_icon = QSystemTrayIcon(self)
+            self.tray_icon.setIcon(_load_icon())
+            self.tray_icon.setToolTip(f"MOS [{suffix}]")
 
-        tray_menu = QMenu()
-        show_act = QAction("Show Window", self)
-        show_act.triggered.connect(self.show)
-        quit_act = QAction("Quit", self)
-        quit_act.triggered.connect(self._quit_app)
-        tray_menu.addAction(show_act)
-        tray_menu.addSeparator()
-        tray_menu.addAction(quit_act)
-        self.tray_icon.setContextMenu(tray_menu)
-        self.tray_icon.activated.connect(self._on_tray_activated)
-        self.tray_icon.show()
+            tray_menu = QMenu()
+            show_act = QAction("Show Window", self)
+            show_act.triggered.connect(self.show)
+            quit_act = QAction("Quit", self)
+            quit_act.triggered.connect(self._quit_app)
+            tray_menu.addAction(show_act)
+            tray_menu.addSeparator()
+            tray_menu.addAction(quit_act)
+            self.tray_icon.setContextMenu(tray_menu)
+            self.tray_icon.activated.connect(self._on_tray_activated)
+            self.tray_icon.show()
+
+        # ---------- window control callbacks (thread-safe) ---------------
+        server.window_callback = {
+            "show": lambda: QMetaObject.invokeMethod(
+                self, "_show_window", Qt.QueuedConnection
+            ),
+            "hide": lambda: QMetaObject.invokeMethod(
+                self, "hide", Qt.QueuedConnection
+            ),
+            "toggle": lambda: QMetaObject.invokeMethod(
+                self, "_toggle_window", Qt.QueuedConnection
+            ),
+            "quit": lambda: QMetaObject.invokeMethod(
+                self, "_quit_app", Qt.QueuedConnection
+            ),
+        }
 
         # ---------- refresh timer -----------------------------------------
         self._timer = QTimer(self)
@@ -361,7 +378,25 @@ class MainWindow(QMainWindow):
             self.show()
             self.raise_()
 
+    @Slot()
+    def _show_window(self) -> None:
+        self.show()
+        self.raise_()
+
+    @Slot()
+    def _toggle_window(self) -> None:
+        if self.isVisible():
+            self.hide()
+        else:
+            self.show()
+            self.raise_()
+
     def closeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        if self.server.config.no_tray:
+            self.hide()
+            event.ignore()
+            return
+
         if self.server.config.hide_to_tray_no_warn:
             self.hide()
             event.ignore()
@@ -427,7 +462,8 @@ class MainWindow(QMainWindow):
             )
 
     def _quit_app(self) -> None:
-        self.tray_icon.hide()
+        if hasattr(self, "tray_icon"):
+            self.tray_icon.hide()
         self.server.stop()
         QApplication.quit()
 

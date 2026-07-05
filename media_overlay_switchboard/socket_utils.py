@@ -1,7 +1,7 @@
 # Socket path helpers – multi-instance support via configurable suffixes.
 #
 # Each server instance binds a Unix socket at
-#   $XDG_RUNTIME_DIR/media-overlay-switchboard-<suffix>.sock
+#   $XDG_RUNTIME_DIR/media-overlay-switchboard/media-overlay-switchboard-<suffix>.sock
 # The default suffix is "default".  If a socket is already taken the
 # server auto-increments (default → default1 → default2 …).
 

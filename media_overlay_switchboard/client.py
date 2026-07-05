@@ -35,7 +35,6 @@ def send_command(suffix: str, command: str, **kwargs) -> dict:
 
 
 def resolve_target_suffix(
-    config: Config,
     preferred_suffix: str | None = None,
     no_ask: bool = False,
 ) -> str | None:
@@ -43,8 +42,6 @@ def resolve_target_suffix(
 
     Parameters
     ----------
-    config :
-        Application config (used for the ``ask_socket`` setting).
     preferred_suffix :
         Explicit suffix from ``--suffix`` – used directly when given.
     no_ask :
@@ -67,7 +64,9 @@ def resolve_target_suffix(
         return active[0][0]
 
     # ---- multiple instances running -------------------------------------
-    ask = config.get_ask_socket(active[0][0])
+    # Load the config for the first active suffix to get its ask_socket
+    active_cfg = Config.load(active[0][0])
+    ask = active_cfg.ask_socket
 
     if ask is None:
         # default – warn and auto-pick
@@ -77,7 +76,7 @@ def resolve_target_suffix(
             file=sys.stderr,
         )
         print(
-            "  Set ask_socket.<suffix> to true  for interactive selection, "
+            "  Set ask_socket to true for interactive selection, "
             "or false to suppress this message.",
             file=sys.stderr,
         )

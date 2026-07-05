@@ -70,6 +70,9 @@ class Server:
         self._clamp_indices()
         self._write_outputs()
 
+        # --- window control callback (set by GUI) -------------------------
+        self.window_callback: dict[str, callable] | None = None
+
         # --- networking ---------------------------------------------------
         self._socket: socket.socket | None = None
         self._running = False
@@ -373,11 +376,43 @@ class Server:
             "image-toggle": lambda: self.cmd_image_toggle(),
             "reload": lambda: self.cmd_reload(),
             "status": lambda: {**{"status": "ok"}, **self.get_status()},
+            "window-show": lambda: self._window_show(),
+            "window-hide": lambda: self._window_hide(),
+            "window-toggle": lambda: self._window_toggle(),
+            "window-quit": lambda: self._window_quit(),
         }
         handler = handlers.get(command)
         if handler is None:
             return {"status": "error", "message": f"Unknown command: {command}"}
         return handler()
+
+    def _window_show(self) -> dict:
+        cb = self.window_callback
+        if cb and "show" in cb:
+            cb["show"]()
+            return {"status": "ok", "message": "Window shown"}
+        return {"status": "error", "message": "No GUI window attached"}
+
+    def _window_hide(self) -> dict:
+        cb = self.window_callback
+        if cb and "hide" in cb:
+            cb["hide"]()
+            return {"status": "ok", "message": "Window hidden"}
+        return {"status": "error", "message": "No GUI window attached"}
+
+    def _window_toggle(self) -> dict:
+        cb = self.window_callback
+        if cb and "toggle" in cb:
+            cb["toggle"]()
+            return {"status": "ok", "message": "Window toggled"}
+        return {"status": "error", "message": "No GUI window attached"}
+
+    def _window_quit(self) -> dict:
+        cb = self.window_callback
+        if cb and "quit" in cb:
+            cb["quit"]()
+            return {"status": "ok", "message": "Quitting"}
+        return {"status": "error", "message": "No GUI window attached"}
 
     # ---- lifecycle ------------------------------------------------------
 
