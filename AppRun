@@ -1,0 +1,13 @@
+#!/bin/bash
+# AppImage entry point – if no arguments are given, start the GUI server.
+# Otherwise pass all arguments through to the bundled CLI.
+set -eu
+
+HERE="$(dirname "$(readlink -f "$0")")"
+BUNDLE="$HERE/usr/lib/mo-switchboard/mo-switchboard"
+
+if [ $# -eq 0 ]; then
+    exec "$BUNDLE" server
+fi
+
+exec "$BUNDLE" "$@"

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Media Overlay Switchboard
+Comment=Media output switcher for streaming overlays
+Exec=mo-switchboard-gui
+Icon=media-overlay-switchboard
+Terminal=false
+Type=Application
+Categories=AudioVideo;Utility;
+StartupNotify=false
