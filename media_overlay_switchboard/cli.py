@@ -3,6 +3,7 @@
 
 import argparse
 import logging
+import os
 import time
 import sys
 import threading
@@ -307,9 +308,19 @@ def _run_interactive_menu(server: object, suffix: str) -> None:
                 except (ValueError, TypeError):
                     print("Invalid format. Use e.g. 1920x1080")
 
+            # desktop entry
+            elif action in ("de", "desktop-entry"):
+                from .desktop_entry import create_desktop_entry
+                appimage = os.environ.get("APPIMAGE")
+                result = create_desktop_entry(appimage)
+                if result:
+                    print(f"Desktop entry created at {result}")
+                else:
+                    print("Failed to create desktop entry")
+
             # meta
             elif action in ("q", "quit", "exit"):
-                print("Shutting down…")
+                print("Shutting down\u2026")
                 break
             elif action in ("?", "h", "help"):
                 _print_interactive_help()
@@ -337,6 +348,7 @@ def _print_interactive_help() -> None:
     print("  si <path>            set images folder")
     print("  st <path>            set target folder")
     print("  sz <WxH>             set placeholder size (e.g. 1920x1080)")
+    print("  de                   create desktop entry")
     print("  q / exit             quit")
     print("  ? / help             this help")
     print()

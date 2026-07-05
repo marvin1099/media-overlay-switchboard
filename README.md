@@ -65,6 +65,14 @@ Pillow, icon, desktop file, and both entry points into a single portable
 executable. Requires `appimagetool` (downloaded automatically) and a working
 Python venv.
 
+**AppImage entry behaviour:**
+- No arguments → starts the GUI server (`mo-switchboard-gui`)
+- Arguments given → passed through to the bundled CLI binary (`mo-switchboard-cli`), e.g.
+  ```bash
+  ./Media-Overlay-Switchboard-*.AppImage server --no-gui --suffix myshow
+  ./Media-Overlay-Switchboard-*.AppImage text-next --suffix default
+  ```
+
 ## Quick start
 
 ### 1. Prepare sources
@@ -178,22 +186,22 @@ working overlay.
 
 ### Desktop entry & icon
 
-For the app icon to show in your system tray and taskbar, install the
-provided `.desktop` file and icon:
+You can create a desktop entry (placing the icon and a `.desktop` file) so
+the app appears in your application menu:
 
-```bash
-# Copy the icon to the system icon theme
-mkdir -p ~/.local/share/icons/hicolor/scalable/apps
-cp media_overlay_switchboard/resources/Lavers.svg \
-   ~/.local/share/icons/hicolor/scalable/apps/media-overlay-switchboard.svg
+| Method | How |
+|---|---|
+| **GUI** | Click the "Create Desktop Entry" button in the bottom bar |
+| **Interactive menu** | Type `de` at the prompt |
+| **Standalone script** | Run `./create-desktop-entry.sh` from the project root, or `bash create-desktop-entry.sh --appimage /path/to.AppImage` |
 
-# Install the .desktop file
-cp media-overlay-switchboard.desktop \
-   ~/.local/share/applications/
+When running from an AppImage, the script auto-detects the `$APPIMAGE`
+environment variable and sets the `Exec` line to point at the AppImage.
 
-# Update the icon cache
-gtk-update-icon-cache ~/.local/share/icons/hicolor 2>/dev/null || true
-```
+If the GUI package (`[gui]` extra) is **not** installed, the desktop entry
+will have `Terminal=true` so the interactive menu opens in a terminal
+when launched from the application menu. Otherwise `Terminal=false` (GUI
+window).
 
 > **Note:** Some desktop environments (GNOME) don't show tray icons at all
 > without an extension like [AppIndicator](https://extensions.gnome.org/extension/615/appindicator-support/).
@@ -210,6 +218,7 @@ MOS [default] — commands
   in/ip/is ih/iss/it   image next/prev/set, hide/show/toggle
   sf/si/st             select text file / images folder / target folder
   sz <WxH>             set placeholder image size (e.g. sz 1920x1080)
+  de                   create desktop entry (places icon + .desktop file)
   q                    quit
   ?                    help
 ```
@@ -233,7 +242,7 @@ When multiple instances are running and no `--suffix` is given, the CLI
 behaviour depends on the `ask_socket` config setting:
 
 | Value | Behaviour |
-|---|---|---|
+|---|---|
 | `true` | Prompt to pick a socket interactively |
 | `false` | Auto-picks a socket (usually `default` or first found) |
 | `null` (not set) | Print a warning to stderr with a hint to set `ask_socket` |

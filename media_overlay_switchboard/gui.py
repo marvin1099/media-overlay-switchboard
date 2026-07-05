@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QMenu,
 )
 
+from .desktop_entry import create_desktop_entry
 from .server import Server
 
 
@@ -195,10 +196,12 @@ class MainWindow(QMainWindow):
 
         # --- bottom row --------------------------------------------------
         bottom = QHBoxLayout()
+        self.btn_desktop_entry = QPushButton("Create Desktop Entry")
         self.btn_quit = QPushButton("Quit")
         self.btn_hide_tray = QPushButton("Hide to Tray")
-        bottom.addWidget(self.btn_quit, 1)
+        bottom.addWidget(self.btn_desktop_entry, 1)
         bottom.addWidget(self.btn_hide_tray, 1)
+        bottom.addWidget(self.btn_quit, 1)
         layout.addLayout(bottom)
 
         # ---------- signals -----------------------------------------------
@@ -211,6 +214,7 @@ class MainWindow(QMainWindow):
         self.btn_image_toggle.clicked.connect(self._on_image_toggle)
         self.btn_image_folder.clicked.connect(self._on_select_image_folder)
         self.btn_target_folder.clicked.connect(self._on_select_target_folder)
+        self.btn_desktop_entry.clicked.connect(self._on_create_desktop_entry)
         self.btn_hide_tray.clicked.connect(self.hide)
         self.btn_quit.clicked.connect(self._quit_app)
 
@@ -405,6 +409,22 @@ class MainWindow(QMainWindow):
             event.ignore()
         else:
             event.ignore()
+
+    def _on_create_desktop_entry(self) -> None:
+        appimage = os.environ.get("APPIMAGE")
+        result = create_desktop_entry(appimage, terminal=False)
+        if result:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, "Desktop Entry Created",
+                f"Desktop entry created at:\n{result}",
+            )
+        else:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self, "Error",
+                "Failed to create desktop entry. See terminal for details.",
+            )
 
     def _quit_app(self) -> None:
         self.tray_icon.hide()
