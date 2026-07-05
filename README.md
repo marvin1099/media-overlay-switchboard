@@ -9,6 +9,9 @@ Your overlay software watches those files.
 Text and image navigation is **independent** (Next Text, Next Image, …).
 Each can be **hidden** (empty text file / transparent placeholder PNG).
 
+AI was used a lot, human code checking and testing was performed.
+This is mosly a tool I wanted to have, but I'm sharing it becalse why not.
+
 ## Install
 
 ```bash
@@ -229,13 +232,21 @@ mo-switchboard-cli text-next --suffix stream-a   # controls stream-a only
 When multiple instances are running and no `--suffix` is given, the CLI
 behaviour depends on the `ask_socket` config setting:
 
-| `ask_socket` | Behaviour |
-|---|---|
+| Value | Behaviour |
+|---|---|---|
 | `true` | Prompt to pick a socket interactively |
-| `false` | Fail with an error listing available sockets |
-| `null` (default) | Print a warning to stderr with a hint to set `ask_socket` |
+| `false` | Auto-picks a socket (usually `default` or first found) |
+| `null` (not set) | Print a warning to stderr with a hint to set `ask_socket` |
 
-Set it with:
+The setting is per socket suffix. Set it for a specific suffix:
+
+```bash
+mo-switchboard-cli config-set ask_socket.default true
+mo-switchboard-cli config-set ask_socket.stream1 false
+```
+
+If no entry exists for the current suffix, the `default` entry is used as
+fallback (if set). Otherwise the global default (`null`) applies.
 
 ```bash
 mo-switchboard-cli config-set ask_socket true
@@ -280,7 +291,7 @@ All config keys:
 | `images_folder` | string | `""` | Path to images folder |
 | `target_folder` | string | `""` | Path for output files |
 | `text_separator` | string | `-- TEXTSPLIT --` | Separator between entries |
-| `ask_socket` | bool / null | `null` | Multi-instance socket prompt |
+| `ask_socket` | dict | `{}` | Per-suffix socket prompt (e.g. `{"default": true}`) |
 | `transparent_width` | int | `1920` | Placeholder image width |
 | `transparent_height` | int | `1080` | Placeholder image height |
 | `text_index` | int | `0` | Current text entry (persisted) |

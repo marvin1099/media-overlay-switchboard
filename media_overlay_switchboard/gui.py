@@ -273,7 +273,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         self.server.config.text_file = path
-        self.server.config.save()
+        self.server.config.save(self.server.suffix)
         self.server.reload()
         self._refresh()
 
@@ -284,7 +284,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         self.server.config.images_folder = path
-        self.server.config.save()
+        self.server.config.save(self.server.suffix)
         self.server.reload()
         self._refresh()
 
@@ -295,7 +295,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         self.server.config.target_folder = path
-        self.server.config.save()
+        self.server.config.save(self.server.suffix)
         self.server.reload()
         self._refresh()
 
@@ -304,7 +304,7 @@ class MainWindow(QMainWindow):
     def _on_size_changed(self) -> None:
         self.server.config.transparent_width = self.spin_width.value()
         self.server.config.transparent_height = self.spin_height.value()
-        self.server.config.save()
+        self.server.config.save(self.server.suffix)
         self.server.reload()
 
     # ---- display update --------------------------------------------------
@@ -400,7 +400,7 @@ class MainWindow(QMainWindow):
         elif action[0] == "hide":
             if cb.isChecked():
                 self.server.config.hide_to_tray_no_warn = True
-                self.server.config.save()
+                self.server.config.save(self.server.suffix)
             self.hide()
             event.ignore()
         else:

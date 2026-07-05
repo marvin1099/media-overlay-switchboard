@@ -112,11 +112,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("index", type=int, help="Image index (0-based)")
 
     # ---- config commands ------------------------------------------------
-    p = sub.add_parser("config-set", help="Set a configuration value")
+    p = sub.add_parser("config-set", help="Set a configuration value", parents=[_CLIENT_OPTS])
     p.add_argument("key", help="Configuration key")
     p.add_argument("value", help="New value")
 
-    p = sub.add_parser("config-get", help="Read configuration")
+    p = sub.add_parser("config-get", help="Read configuration", parents=[_CLIENT_OPTS])
     p.add_argument("key", nargs="?", default=None, help="Key to read (omit for all)")
 
     return parser
@@ -127,7 +127,7 @@ def build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 def _run_server(args: argparse.Namespace) -> None:
-    config = Config.load()
+    config = Config.load(args.suffix)
     config.update_from_cli(args)
 
     # resolve suffix (auto-increment when already in use)
@@ -272,7 +272,7 @@ def _run_interactive_menu(server: object, suffix: str) -> None:
                     print("Usage: sf <path>")
                     continue
                 server.config.text_file = arg
-                server.config.save()
+                server.config.save(server.suffix)
                 server.reload()
                 print("ok")
             elif action in ("si", "set-images-folder"):
@@ -280,7 +280,7 @@ def _run_interactive_menu(server: object, suffix: str) -> None:
                     print("Usage: si <path>")
                     continue
                 server.config.images_folder = arg
-                server.config.save()
+                server.config.save(server.suffix)
                 server.reload()
                 print("ok")
             elif action in ("st", "set-target-folder"):
@@ -288,7 +288,7 @@ def _run_interactive_menu(server: object, suffix: str) -> None:
                     print("Usage: st <path>")
                     continue
                 server.config.target_folder = arg
-                server.config.save()
+                server.config.save(server.suffix)
                 server.reload()
                 print("ok")
 
@@ -301,7 +301,7 @@ def _run_interactive_menu(server: object, suffix: str) -> None:
                     w, h = arg.split("x", 1)
                     server.config.transparent_width = int(w)
                     server.config.transparent_height = int(h)
-                    server.config.save()
+                    server.config.save(server.suffix)
                     server.reload()
                     print(f"Placeholder size set to {w}x{h}")
                 except (ValueError, TypeError):
@@ -405,24 +405,50 @@ def _print_status(data: dict) -> None:
 
 
 def _run_config_set(args: argparse.Namespace) -> None:
-    config = Config.load()
+    suffix = args.suffix or "default"
+    config = Config.load(suffix)
     parsed = parse_config_value(args.value)
-    if not hasattr(config, args.key):
-        print(f"error: Unknown config key '{args.key}'")
-        sys.exit(1)
-    setattr(config, args.key, parsed)
-    config.save()
-    print(f"config.{args.key} = {repr(parsed)}")
+    key = args.key
+    if "." in key:
+        parent, child = key.split(".", 1)
+        if not hasattr(config, parent):
+            print(f"error: Unknown config key '{parent}'")
+            sys.exit(1)
+        obj = getattr(config, parent)
+        if not isinstance(obj, dict):
+            print(f"error: '{parent}' is not a dict")
+            sys.exit(1)
+        obj[child] = parsed
+    else:
+        if not hasattr(config, key):
+            print(f"error: Unknown config key '{key}'")
+            sys.exit(1)
+        setattr(config, key, parsed)
+    config.save(suffix)
+    print(f"config.{key} = {repr(parsed)}")
 
 
 def _run_config_get(args: argparse.Namespace) -> None:
-    config = Config.load()
+    suffix = args.suffix or "default"
+    config = Config.load(suffix)
     if args.key:
-        if not hasattr(config, args.key):
-            print(f"error: Unknown config key '{args.key}'")
-            sys.exit(1)
-        val = getattr(config, args.key)
-        print(f"{args.key} = {repr(val)}")
+        if "." in args.key:
+            parent, child = args.key.split(".", 1)
+            if not hasattr(config, parent):
+                print(f"error: Unknown config key '{parent}'")
+                sys.exit(1)
+            obj = getattr(config, parent)
+            if isinstance(obj, dict):
+                val = obj.get(child, "<not set>")
+            else:
+                val = "<not a dict>"
+            print(f"{args.key} = {repr(val)}")
+        else:
+            if not hasattr(config, args.key):
+                print(f"error: Unknown config key '{args.key}'")
+                sys.exit(1)
+            val = getattr(config, args.key)
+            print(f"{args.key} = {repr(val)}")
     else:
         print("Configuration:")
         for key, value in config.__dict__.items():

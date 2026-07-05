@@ -150,7 +150,7 @@ class Server:
         """Save current indices to config and flush to disk."""
         self.config.text_index = self.text_index
         self.config.image_index = self.image_index
-        self.config.save()
+        self.config.save(self.suffix)
 
     def reload(self) -> None:
         """Re-read source files and clamp indices (thread-safe)."""

@@ -48,7 +48,7 @@ def resolve_target_suffix(
     preferred_suffix :
         Explicit suffix from ``--suffix`` – used directly when given.
     no_ask :
-        Temporarily overrides *config.ask_socket* to ``False``.
+        Temporarily overrides *ask_socket* to ``False``.
 
     Returns
     -------
@@ -67,7 +67,7 @@ def resolve_target_suffix(
         return active[0][0]
 
     # ---- multiple instances running -------------------------------------
-    ask = config.ask_socket  # True / False / None
+    ask = config.get_ask_socket(active[0][0])
 
     if ask is None:
         # default – warn and auto-pick
@@ -77,7 +77,7 @@ def resolve_target_suffix(
             file=sys.stderr,
         )
         print(
-            "  Set ask_socket to true  for interactive selection, "
+            "  Set ask_socket.<suffix> to true  for interactive selection, "
             "or false to suppress this message.",
             file=sys.stderr,
         )

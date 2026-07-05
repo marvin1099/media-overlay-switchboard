@@ -59,6 +59,14 @@ def parse_config_value(value: str):
 class Config:
     """Persistent configuration stored as JSON inside XDG_CONFIG_HOME.
 
+    The file uses a per-suffix structure::
+
+        {"default": {…}, "myshow": {…}}
+
+    Each top-level key is a socket suffix, and its value is the full set
+    of config fields for that instance.  The ``"default"`` entry is used
+    as a fallback when no suffix-specific config exists.
+
     Fields
     ------
     text_file       – path to the text entries file
@@ -66,8 +74,8 @@ class Config:
     target_folder   – path where output files (overlay_text.txt,
                       overlay_image.png) are written
     text_separator  – string that separates entries in the text file
-    ask_socket      – whether to prompt/interactively pick a socket when
-                      multiple server instances are running
+    ask_socket      – per-suffix setting for multi-instance socket selection
+                      (maps suffix → bool/None, falls back to "default")
     transparent_width / transparent_height – dimensions of the generated
                       transparent placeholder image
     """
@@ -77,7 +85,7 @@ class Config:
         self.images_folder: str = ""
         self.target_folder: str = ""
         self.text_separator: str = DEFAULT_TEXT_SEPARATOR
-        self.ask_socket: bool | None = None
+        self.ask_socket: dict[str, bool | None] = {}
         self.transparent_width: int = DEFAULT_TRANSPARENT_SIZE[0]
         self.transparent_height: int = DEFAULT_TRANSPARENT_SIZE[1]
         self.text_index: int = 0
@@ -88,26 +96,47 @@ class Config:
     # Serialisation
     # ------------------------------------------------------------------
     @classmethod
-    def load(cls) -> "Config":
-        """Load the config from disk.  Returns a default config when the
-        file is missing or corrupt."""
+    def load(cls, suffix: str = "default") -> "Config":
+        """Load the config for *suffix* from disk.
+
+        Falls back to ``"default"`` when no entry for *suffix* exists.
+        Automatically migrates a legacy flat config into the per-suffix
+        structure on first access.
+        """
         cfg = cls()
         config_path = get_config_dir() / "config.json"
-        if config_path.exists():
-            try:
-                data = json.loads(config_path.read_text(encoding="utf-8"))
-                for key, value in data.items():
-                    if hasattr(cfg, key):
-                        setattr(cfg, key, value)
-            except (json.JSONDecodeError, OSError):
-                pass  # corrupt file – carry on with defaults
+        if not config_path.exists():
+            return cfg
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return cfg
+
+        # Detect old flat format → migrate to per-suffix
+        if not _is_suffixed(data):
+            _migrate_to_suffixed(data, config_path)
+            data = {suffix: data}
+
+        section = data.get(suffix) or data.get("default")
+        if section and isinstance(section, dict):
+            for key, value in section.items():
+                if hasattr(cfg, key):
+                    setattr(cfg, key, value)
         return cfg
 
-    def save(self) -> None:
-        """Write the current config to disk."""
+    def save(self, suffix: str = "default") -> None:
+        """Write the current config under *suffix* to disk."""
         config_path = get_config_dir() / "config.json"
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            data = {}
+        if not _is_suffixed(data):
+            data = {}
+
+        data[suffix] = self.__dict__
         config_path.write_text(
-            json.dumps(self.__dict__, indent=2, default=str),
+            json.dumps(data, indent=2, default=str),
             encoding="utf-8",
         )
 
@@ -138,3 +167,32 @@ class Config:
     @property
     def transparent_size(self) -> tuple[int, int]:
         return (self.transparent_width, self.transparent_height)
+
+    def get_ask_socket(self, suffix: str) -> bool | None:
+        """Resolve ask_socket for a given suffix, falling back to 'default'."""
+        if suffix in self.ask_socket:
+            return self.ask_socket[suffix]
+        if "default" in self.ask_socket:
+            return self.ask_socket["default"]
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _is_suffixed(data: dict) -> bool:
+    """Return True if *data* looks like a per-suffix config structure."""
+    if not data:
+        return True
+    # Suffixed format: every top-level value is itself a dict.
+    return all(isinstance(v, dict) for v in data.values())
+
+
+def _migrate_to_suffixed(data: dict, config_path: Path) -> None:
+    """Wrap a legacy flat config under the ``"default"`` key."""
+    suffixed = {"default": data}
+    config_path.write_text(
+        json.dumps(suffixed, indent=2, default=str),
+        encoding="utf-8",
+    )
