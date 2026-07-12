@@ -3,8 +3,8 @@
 A media output switcher for streaming overlays (OBS, etc.).
 
 Reads text entries from a file and images from a folder, then writes
-`overlay_text.txt` and `overlay_image.png` into a target directory.
-Your overlay software watches those files.
+`overlay_text.txt`, `overlay_text.html`, and `overlay_image.png` into
+a target directory.  Your overlay software watches those files.
 
 Text and image navigation is **independent** (Next Text, Next Image, …).
 Each can be **hidden** (empty text file / transparent placeholder PNG).
@@ -90,6 +90,24 @@ Now playing: Game Title
 Thanks for watching!
 ```
 
+Each entry can optionally start with a **hex colour** on its own line
+to set the text colour in the HTML output:
+
+```
+Default coloured text
+
+-- TEXTSPLIT --
+#FF0000
+Red text!
+
+-- TEXTSPLIT --
+#00FF00
+Green text!
+```
+
+Colour lines are stripped from the plain-text output (`overlay_text.txt`)
+and only applied to the HTML file (`overlay_text.html`).
+
 Place images in a folder, they will be displayed alphabetically by name:
 
 ```
@@ -116,7 +134,8 @@ mo-switchboard-cli server \
 
 The server listens on a Unix socket at
 `$XDG_RUNTIME_DIR/media-overlay-switchboard/media-overlay-switchboard-default.sock`
-and writes `overlay_text.txt` + `overlay_image.png` into the target folder.
+and writes `overlay_text.txt`, `overlay_text.html`, and `overlay_image.png`
+into the target folder.
 
 Use `--no-gui` for console-only mode (no Qt window):
 
@@ -167,8 +186,21 @@ and exit with code 1.
 Add a **Text (GDI+)** / **Text (FreeType 2)** source pointing to
 `overlay_text.txt`, and an **Image** source pointing to `overlay_image.png`.
 
+For **coloured text**, add a **Browser** source pointing to
+`overlay_text.html` instead — the HTML file uses inline CSS with the
+per-entry hex colour (defaults to white when none is set).
+
 Because the files are overwritten in place, your overlay software picks up
 every change automatically.
+
+> **Note:** OBS Browser sources do **not** auto-refresh when the HTML file
+> changes.  To force a refresh, use
+> [obs-cmd](https://github.com/nicehash/obs-cmd):
+> ```
+> obs-cmd -w obsws://localhost:4455/PASSWORD trigger-hotkey "ObsBrowser.Refresh"
+> ```
+> Replace `PASSWORD` with your OBS WebSocket password (set in OBS →
+> Tools → WebSocket Server Settings).
 
 ## GUI
 

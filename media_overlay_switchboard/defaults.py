@@ -13,6 +13,7 @@ DEFAULT_TRANSPARENT_SIZE = (1920, 1080)
 
 # Filenames written into the target output folder
 OUTPUT_TEXT_FILE = "overlay_text.txt"
+OUTPUT_TEXT_HTML_FILE = "overlay_text.html"
 OUTPUT_IMAGE_FILE = "overlay_image.png"
 
 # Recognised image file extensions (lowercase for matching)

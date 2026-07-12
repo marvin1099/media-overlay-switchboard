@@ -393,8 +393,10 @@ def _print_interactive_help() -> None:
 def _print_interactive_status(server: object) -> None:
     st = server.get_status()
     print()
+    text_colour = st.get("text_colour") or ""
     print(f"  Text:   entry {st['text_index'] + 1} / {st['text_total']}"
           f"  [{ 'SHOWN' if not st['text_hidden'] else 'HIDDEN' }]"
+          f"  colour: {text_colour}"
           f"  file: {server.config.text_file or '(none)'}")
     print(f"  Image:  file {st['image_index'] + 1} / {st['image_total']}"
           f"  [{ 'SHOWN' if not st['image_hidden'] else 'HIDDEN' }]"
@@ -443,6 +445,9 @@ def _print_status(data: dict) -> None:
     print("Text:")
     print(f"  Entry:    {data.get('text_index', -1) + 1} / {data.get('text_total', 0)}")
     print(f"  Hidden:   {data.get('text_hidden', False)}")
+    colour = data.get("text_colour")
+    if colour:
+        print(f"  Colour:   {colour}")
     if data.get("text_entry"):
         print(f"  Content:  {data['text_entry'][:120]}")
     print()

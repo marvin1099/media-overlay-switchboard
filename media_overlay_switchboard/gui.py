@@ -339,6 +339,9 @@ class MainWindow(QMainWindow):
                 f"Entry {st['text_index'] + 1} / {st['text_total']}"
                 f"{'  (HIDDEN)' if st['text_hidden'] else ''}"
             )
+            colour = st.get("text_colour")
+            if colour:
+                label += f"  [{colour}]"
             entry = st.get("text_entry", "")
             if entry:
                 label += f"\n{entry}"

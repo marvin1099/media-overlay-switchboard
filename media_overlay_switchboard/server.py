@@ -17,6 +17,7 @@ from .config import Config
 from .defaults import (
     IMAGE_EXTENSIONS,
     OUTPUT_TEXT_FILE,
+    OUTPUT_TEXT_HTML_FILE,
     OUTPUT_IMAGE_FILE,
 )
 from .socket_utils import get_socket_path
@@ -51,7 +52,7 @@ class Server:
 
         # --- state --------------------------------------------------------
         self._lock = threading.Lock()
-        self.text_entries: list[str] = []
+        self.text_entries: list[tuple[str, str | None]] = []
         self.image_files: list[Path] = []
         self.text_index = 0
         self.image_index = 0
@@ -79,21 +80,27 @@ class Server:
 
     # ---- source loading --------------------------------------------------
 
+    _HEX_COLOR_RE = re.compile(r"^#([0-9A-Fa-f]{6})$")
+
     def _load_text(self) -> None:
-        """Read the text file and split on the configured separator.
+        """Read the text file, split on the configured separator, and
+        extract optional hex colours per entry.
 
-        The separator consumes at most one ``\\n`` before and after itself
-        so that entries can contain blank lines without ambiguity::
+        Each entry may start with a hex colour line (e.g. ``#FF0000``) on
+        its own line.  The colour applies to that entry only.  If absent,
+        the default colour (white) is used::
 
-            First paragraph
-            still first paragraph
+            First entry (default colour)
 
             -- TEXTSPLIT --
 
-            Second entry
+            #FF0000
+            Second entry in red
 
-        Leading/trailing empty entries (artefacts of a leading/trailing
-        separator) are dropped.
+            -- TEXTSPLIT --
+
+            #00FF00
+            Third entry in green
         """
         path_str = self.config.text_file
         if not path_str:
@@ -107,17 +114,31 @@ class Server:
         content = path.read_text(encoding="utf-8")
         sep = self.config.text_separator
         if not sep:
-            self.text_entries = [content.strip()] if content.strip() else []
+            raw = [content.strip()] if content.strip() else []
         else:
             # consume at most one \n before and after the separator
             pattern = re.compile(r'\n?' + re.escape(sep) + r'\n?')
-            entries = pattern.split(content)
+            raw = pattern.split(content)
             # drop leading/trailing empty strings from split artefacts
-            while entries and not entries[0]:
-                entries.pop(0)
-            while entries and not entries[-1]:
-                entries.pop()
-            self.text_entries = entries
+            while raw and not raw[0]:
+                raw.pop(0)
+            while raw and not raw[-1]:
+                raw.pop()
+
+        self.text_entries = []
+        for entry in raw:
+            # skip leading blank lines for colour detection
+            body = entry.lstrip("\n")
+            lines = body.split("\n", 1)
+            first = lines[0].strip()
+            m = self._HEX_COLOR_RE.match(first)
+            if m:
+                colour = m.group(0)
+                text = (lines[1] if len(lines) > 1 else "").lstrip("\n")
+            else:
+                colour = None
+                text = entry.lstrip("\n")
+            self.text_entries.append((text, colour))
         logger.info("Loaded %d text entries from %s", len(self.text_entries), path)
 
     def _load_images(self) -> None:
@@ -166,7 +187,7 @@ class Server:
     # ---- output file writing ---------------------------------------------
 
     def _write_outputs(self) -> None:
-        """Write the current state to the two target files (no lock –
+        """Write the current state to the three target files (no lock –
         caller must hold ``_lock`` when appropriate)."""
         target = self.config.target_folder
         if not target:
@@ -174,13 +195,44 @@ class Server:
         target_path = Path(target)
         target_path.mkdir(parents=True, exist_ok=True)
 
-        # text output
+        # text output – plain text
         text_out = target_path / OUTPUT_TEXT_FILE
+        html_out = target_path / OUTPUT_TEXT_HTML_FILE
         if self.text_hidden or not self.text_entries:
             text_out.write_text("", encoding="utf-8")
+            html_out.write_text("", encoding="utf-8")
         else:
             idx = max(0, min(self.text_index, len(self.text_entries) - 1))
-            text_out.write_text(self.text_entries[idx], encoding="utf-8")
+            entry_text, entry_colour = self.text_entries[idx]
+            text_out.write_text(entry_text, encoding="utf-8")
+
+            # text output – HTML (for OBS Browser source with colour)
+            colour = entry_colour or "#FFFFFF"
+            safe_text = (
+                entry_text
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
+            html_lines = [
+                "<!DOCTYPE html>",
+                "<html><head><meta charset=\"utf-8\">",
+                "<style>",
+                "  body {",
+                "    margin: 0; padding: 0;",
+                "    background: transparent;",
+                "    font-family: sans-serif;",
+                "    font-size: 24px;",
+                f"    color: {colour};",
+                "  }",
+                "  div {",
+                "    white-space: pre-wrap;",
+                "  }",
+                "</style></head><body>",
+                f"<div>{safe_text}</div>",
+                "</body></html>",
+            ]
+            html_out.write_text("\n".join(html_lines), encoding="utf-8")
 
         # image output
         image_out = target_path / OUTPUT_IMAGE_FILE
@@ -203,10 +255,10 @@ class Server:
     def get_status(self) -> dict:
         """Return a serialisable snapshot of the current state."""
         with self._lock:
-            text_entry = (
+            text_entry, text_colour = (
                 self.text_entries[self.text_index]
                 if self.text_entries and not self.text_hidden
-                else ""
+                else ("", None)
             )
             image_name = (
                 self.image_files[self.image_index].name
@@ -218,6 +270,7 @@ class Server:
                 "text_total": len(self.text_entries),
                 "text_hidden": self.text_hidden,
                 "text_entry": text_entry,
+                "text_colour": text_colour,
                 "image_index": self.image_index if self.image_files else -1,
                 "image_total": len(self.image_files),
                 "image_hidden": self.image_hidden,
