@@ -21,22 +21,32 @@ cd media-overlay-switchboard
 
 # with uv (recommended)
 uv tool install --with 'media-overlay-switchboard[gui]' .
-# or without gui
+# without gui
 uv tool install .
+# everything (gui + build deps)
+uv tool install --with 'media-overlay-switchboard[all]' .
 
 # with pipx
 pipx install media-overlay-switchboard[gui]
 
-# with pip – use --user to avoid breaking system packages
-pip install --user 'media-overlay-switchboard[gui]'
+# with pip (requires venv – install in project's virtual environment)
+pip install 'media-overlay-switchboard[gui]'
 ```
 
 After source edits, re-run the `uv tool install` command to update the
 installed copy.
 
-> **Note:** If you skip the `[gui]` extra, the CLI works fine — only the
-> optional GUI window is unavailable.  `mo-switchboard-gui` will print a
-> warning and fall back to console-only mode.
+### Optional dependencies
+
+| Extra | Packages | Purpose |
+|---|---|---|
+| `[gui]` | PySide6 | Status window & tray icon |
+| `[build]` | pyinstaller | Building AppImage |
+| `[all]` | PySide6 + pyinstaller | Everything |
+
+> **Note:** Without `[gui]` the CLI works fine — only the optional GUI
+> window is unavailable.  `mo-switchboard-gui` prints a warning and falls
+> back to console-only mode.
 
 Two commands are installed:
 
@@ -54,7 +64,7 @@ To build it yourself:
 
 ```bash
 # ensure build deps are available
-pip install pyinstaller
+uv tool install --with 'media-overlay-switchboard[all]' .
 
 # build the AppImage
 ./build_appimage.sh
@@ -194,8 +204,15 @@ Because the files are overwritten in place, your overlay software picks up
 every change automatically.
 
 > **Note:** OBS Browser sources do **not** auto-refresh when the HTML file
-> changes.  To force a refresh, use
-> [obs-cmd](https://github.com/nicehash/obs-cmd):
+> changes.  **Recommended:** install the
+> [file-browser-source-reloader](https://github.com/marvin1099/file-browser-source-reloader)
+> OBS script.  Set its **Watch File** to `overlay_text.html` and it will
+> refresh the browser source automatically whenever media-overlay-switchboard
+> updates the file (File Update mode is the default).
+
+> **Alternative (WebSocket-based):** the obs-cmd hotkey below refreshes all
+> browser sources, so it cannot target a single browser source:
+> [obs-cmd](https://github.com/nicehash/obs-cmd)
 > ```
 > obs-cmd -w obsws://localhost:4455/PASSWORD trigger-hotkey "ObsBrowser.Refresh"
 > ```
